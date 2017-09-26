@@ -22,14 +22,29 @@ def initialise_glove_embeddings():
 		j=j+1
 	return glove_lookup	
 
-glove_lookup = initialise_glove_embeddings()
+#def bubble(badList):
+#	length = len(badList) - 1
+#	sorted = False  # We haven't started sorting yet
+#	i = 0
+#	while not sorted:
+#		sorted = True  # Assume the list is now sorted
+#		for element in range(length):
+#			if badList[element][0] > badList[element + 1][0]:
+#				sorted = False  # We found two elements in the wrong order
+#				badList[i], badList[i+1] = badList[i+1], badList[i]
+#		print str(i)
+#		i = i + 1
+#	return badList
 
+glove_lookup = initialise_glove_embeddings()
+#glove_lookup = bubble(glove_lookup)
+	
 def get_glove_embedding(word):
 	embedding = 0
 	for word_embedding in glove_lookup:
 		if word_embedding[0] == word:
 			embedding = word_embedding[1]
-	return embedding
+	return embedding	
 
 def parse_squad():
 	with open('train-v1.1.json', 'r') as squad_file:
@@ -71,56 +86,72 @@ def read_squad():
 		paragraphs = text["paragraphs"]
 		for paragraph in paragraphs:
 			context = paragraph["context"]
-			#print context
-			#print paragraph_num
-			#print number_of_paragraphs
 			paragraphs_list[paragraph_num] = context
 			qas = paragraph["qas"]
 			for qa in qas:
 				question = qa["question"]
-				#print "Q: " + question
-				#print question_num
-				#print number_of_questions
 				questions_list[question_num] = question
 				answers = qa["answers"]
 				for answer in answers:
 					answer_text = answer["text"]
-					#print answer_text
-					#print answer_num
-					#print number_of_answers
 					answers_list[answer_num] = answer_text
 					paragraph_question_mapping[answer_num] = paragraph_num
 					answer_num = answer_num + 1
 				question_num = question_num + 1
 			paragraph_num = paragraph_num + 1
-	print "Answers: " + str(number_of_answers)
-	print "Questions: " + str(number_of_questions)
-	print "Paragraphs: " + str(number_of_paragraphs)
 	return questions_list, paragraphs_list, answers_list
 
 def vectorise_squad():
 	questions, paragraphs, answers = read_squad()
-	x = 0 #largest number of sentences in a paragraph
+	largest_num_of_sentences = 0
+	largest_num_of_words = 0
 	for paragraph in paragraphs:
 		sentences = paragraph.split('.')
-		if len(sentences) > x:
-			x = len(sentences)
-	paragraphs_sentences = [[" " for i in range(x)] for j in range(len(paragraphs))]
-	print paragraphs_sentences
-	print x
+		for sentence in sentences:
+			words = sentence.split(' ')
+			if len(words) > largest_num_of_words:
+				largest_num_of_words = len(words)
+		if len(sentences) > largest_num_of_sentences:
+			largest_num_of_sentences = len(sentences)
+	paragraphs_sentences = [[[" " for v in range(largest_num_of_words)] for i in range(largest_num_of_sentences)] for j in range(len(paragraphs))]
 	i = 0
 	for paragraph in paragraphs:
 		sentences = paragraph.split('.')
 		j = 0
 		for sentence in sentences:
-			paragraphs_sentences[i][j]=sentence
+			words = sentence.split(' ')
+			v = 0;
+			for word in words:
+				print "i: " + str(i) + ",j: " + str(j) + ",v: " + str(v)
+				glove_embedding = get_glove_embedding(word)	
+				paragraphs_sentences[i][j][v]=glove_embedding
+				v=v+1
 			j=j+1
 		i=i+1
 	print paragraphs_sentences
-	
-	#for f in paragraphs_sentences:
-	#	for x in f:
-	#		print x
-	#paragraphs_sentences_words = [[['x'] for i in range(x)]]*(len(paragraphs))
-	
+	questions_words = [[" " for t in range(largest_num_of_words)] for l in range(len(questions))]	
+	j = 0
+	for question in squestions:
+		words = question.split(' ')
+		v = 0;
+		for word in words:
+			print "j: " + str(j) + ",v: " + str(v)
+			glove_embedding = get_glove_embedding(word)	
+			questions_words[j][v]=glove_embedding
+			v=v+1
+		j=j+1	
+	print questions_words
+	answers_words = [[" " for p in range(largest_num_of_words)] for h in range(len(answers))]	
+	j = 0
+	for answer in answers:
+		words = answer.split(' ')
+		v = 0;
+		for word in words:
+			print "j: " + str(j) + ",v: " + str(v)
+			glove_embedding = get_glove_embedding(word)	
+			answers_words[j][v]=glove_embedding
+			v=v+1
+		j=j+1	
+	print answers_words
+	#gcloud ml-engine jobs submit training glove7 --module-name trainer.main --package-path Project/trainer --staging-bucket gs://fyp_neural --scale-tier BASIC --region europe-west1
 
