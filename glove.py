@@ -5,7 +5,7 @@ vocab_size = 400000
 
 def initialise_glove_embeddings():
 	glove_dimensionality = 50
-	glove_path = '/media/mateusz/Windows/Users/mateu/Downloads/glove.6B/glove.6B.50d.txt'
+	glove_path = 'glove.6B.50d.txt'
 	glove_lookup = np.zeros(vocab_size, dtype='(100)string, (1,' + str(glove_dimensionality) + ')float')
 	embedding_text = np.genfromtxt(glove_path, delimiter='\n', dtype='string')
 	j=0
@@ -32,7 +32,7 @@ def get_glove_embedding(word):
 	return embedding
 
 def parse_squad():
-	with open('/home/mateusz/Downloads/train-v1.1.json', 'r') as squad_file:
+	with open('train-v1.1.json', 'r') as squad_file:
 		squad_string=squad_file.read()
 		parsed_squad = json.loads(squad_string)
 		return parsed_squad["data"]	
@@ -71,23 +71,23 @@ def read_squad():
 		paragraphs = text["paragraphs"]
 		for paragraph in paragraphs:
 			context = paragraph["context"]
-			print context
-			print paragraph_num
-			print number_of_paragraphs
+			#print context
+			#print paragraph_num
+			#print number_of_paragraphs
 			paragraphs_list[paragraph_num] = context
 			qas = paragraph["qas"]
 			for qa in qas:
 				question = qa["question"]
-				print "Q: " + question
-				print question_num
-				print number_of_questions
+				#print "Q: " + question
+				#print question_num
+				#print number_of_questions
 				questions_list[question_num] = question
 				answers = qa["answers"]
 				for answer in answers:
 					answer_text = answer["text"]
-					print answer_text
-					print answer_num
-					print number_of_answers
+					#print answer_text
+					#print answer_num
+					#print number_of_answers
 					answers_list[answer_num] = answer_text
 					paragraph_question_mapping[answer_num] = paragraph_num
 					answer_num = answer_num + 1
@@ -105,7 +105,9 @@ def vectorise_squad():
 		sentences = paragraph.split('.')
 		if len(sentences) > x:
 			x = len(sentences)
-	paragraphs_sentences = [['x'] for i in range(x)]*(len(paragraphs))
+	paragraphs_sentences = [[" " for i in range(x)] for j in range(len(paragraphs))]
+	print paragraphs_sentences
+	print x
 	i = 0
 	for paragraph in paragraphs:
 		sentences = paragraph.split('.')
@@ -113,7 +115,12 @@ def vectorise_squad():
 		for sentence in sentences:
 			paragraphs_sentences[i][j]=sentence
 			j=j+1
-		i = i+1
+		i=i+1
 	print paragraphs_sentences
+	
+	#for f in paragraphs_sentences:
+	#	for x in f:
+	#		print x
+	#paragraphs_sentences_words = [[['x'] for i in range(x)]]*(len(paragraphs))
 	
 
