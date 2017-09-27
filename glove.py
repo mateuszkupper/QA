@@ -78,7 +78,7 @@ def read_squad():
 	questions_list = ['x']*number_of_questions
 	answers_list = ['x']*number_of_answers
 	paragraphs_list = ['x']*number_of_paragraphs
-	paragraph_question_mapping = [0]*number_of_questions
+	paragraph_question_mapping = [0 for i in range(number_of_questions)]
 	paragraph_num = 0
 	answer_num = 0
 	question_num = 0		
@@ -99,10 +99,13 @@ def read_squad():
 					answer_num = answer_num + 1
 				question_num = question_num + 1
 			paragraph_num = paragraph_num + 1
-	return questions_list, paragraphs_list, answers_list
+	return questions_list, paragraphs_list, answers_list, paragraph_question_mapping
 
 def vectorise_squad():
-	questions, paragraphs, answers = read_squad()
+	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
+	questions = questions[:20]
+	answers = answers[:20]
+	paragraphs = paragraphs[:3]
 	largest_num_of_sentences = 0
 	largest_num_of_words = 0
 	for paragraph in paragraphs:
@@ -131,7 +134,7 @@ def vectorise_squad():
 	print paragraphs_sentences
 	questions_words = [[" " for t in range(largest_num_of_words)] for l in range(len(questions))]	
 	j = 0
-	for question in squestions:
+	for question in questions:
 		words = question.split(' ')
 		v = 0;
 		for word in words:
@@ -153,5 +156,8 @@ def vectorise_squad():
 			v=v+1
 		j=j+1	
 	print answers_words
+	return paragraphs_sentences, questions_words, answers_words, paragraph_question_mapping
+
+p, q, a, m = vectorise_squad()
 	#gcloud ml-engine jobs submit training glove7 --module-name trainer.main --package-path Project/trainer --staging-bucket gs://fyp_neural --scale-tier BASIC --region europe-west1
 
