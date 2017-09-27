@@ -75,9 +75,9 @@ def count_squad():
 def read_squad():
 	data = parse_squad()
 	number_of_answers, number_of_questions, number_of_paragraphs = count_squad()
-	questions_list = ['x']*number_of_questions
-	answers_list = ['x']*number_of_answers
-	paragraphs_list = ['x']*number_of_paragraphs
+	questions_list = ['x' for i in range(number_of_questions)]
+	answers_list = ['x' for i in range(number_of_answers)]
+	paragraphs_list = ['x' for i in range(number_of_paragraphs)]
 	paragraph_question_mapping = [0 for i in range(number_of_questions)]
 	paragraph_num = 0
 	answer_num = 0
