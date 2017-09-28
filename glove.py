@@ -4,7 +4,7 @@ import re
 vocab_size = 400000
 largest_num_of_sentences = 0
 largest_num_of_words = 0
-special_chars = [",", "/", ")", "(", "/", "'", "[", "{", "]", "}", "#", "$", "%", "^", "&", "*", "-", "_", "+", "=", ".", "\""]
+special_chars = ["'", "/", ")", "(", "/", "'", "[", "{", "]", "}", "#", "$", "%", "^", "&", "*", "-", "_", "+", "=", ".", "\""]
 
 def initialise_glove_embeddings():
 	glove_dimensionality = 50
@@ -105,6 +105,8 @@ def count_words_paragraphs_in_squad():
 					num_of_special_chars=num_of_special_chars+1
 				if characters[len(characters)-1] in special_chars:
 					num_of_special_chars=num_of_special_chars+1
+				if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
+					num_of_special_chars=num_of_special_chars+1
 			if len(words) + num_of_special_chars > largest_num_of_words:
 				largest_num_of_words = len(words) + num_of_special_chars
 		if len(sentences) > largest_num_of_sentences:
@@ -135,9 +137,19 @@ def vectorise_paragraphs():
 				if characters[len(characters)-1] in special_chars:
 					word = word[:-1]
 				word = word.lower()
-				glove_embedding = get_glove_embedding(word)	
-				paragraphs_sentences[i][j][v]=glove_embedding
-				v=v+1				
+				if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
+					apostrophe_word = word.split("'")
+					glove_embedding = get_glove_embedding(apostrophe_word[0])	
+					paragraphs_sentences[i][j][v]=glove_embedding
+					v=v+1
+					glove_embedding = get_glove_embedding("'" + apostrophe_word[1])	
+					paragraphs_sentences[i][j][v]=glove_embedding
+					v=v+1
+					print word + " " + apostrophe_word[0] + "'" + apostrophe_word[1]#---------------------------
+				else:						
+					glove_embedding = get_glove_embedding(word)	
+					paragraphs_sentences[i][j][v]=glove_embedding
+					v=v+1				
 				if characters[len(characters)-1] in special_chars:
 					glove_embedding = get_glove_embedding(characters[len(characters)-1])
 					paragraphs_sentences[i][j][v]=glove_embedding
@@ -167,9 +179,19 @@ def vectorise_questions():
 			if characters[len(characters)-1] in special_chars:
 				word = word[:-1]
 			word = word.lower()
-			glove_embedding = get_glove_embedding(word)	
-			questions_words[j][v]=glove_embedding
-			v=v+1				
+			if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
+				apostrophe_word = word.split("'")
+				glove_embedding = get_glove_embedding(apostrophe_word[0])	
+				questions_words[j][v]=glove_embedding
+				v=v+1
+				glove_embedding = get_glove_embedding("'" + apostrophe_word[1])	
+				questions_words[j][v]=glove_embedding
+				v=v+1
+				print word + " " + apostrophe_word[0] + "'" + apostrophe_word[1]#---------------------------
+			else:	
+				glove_embedding = get_glove_embedding(word)	
+				questions_words[j][v]=glove_embedding
+				v=v+1				
 			if characters[len(characters)-1] in special_chars:
 				glove_embedding = get_glove_embedding(characters[len(characters)-1])
 				questions_words[j][v]=glove_embedding
@@ -198,9 +220,19 @@ def vectorise_answers():
 			if characters[len(characters)-1] in special_chars:
 				word = word[:-1]
 			word = word.lower()
-			glove_embedding = get_glove_embedding(word)	
-			answers_words[j][v]=glove_embedding
-			v=v+1				
+			if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
+				apostrophe_word = word.split("'")
+				glove_embedding = get_glove_embedding(apostrophe_word[0])	
+				answers_words[j][v]=glove_embedding
+				v=v+1
+				glove_embedding = get_glove_embedding("'" + apostrophe_word[1])	
+				answers_words[j][v]=glove_embedding
+				v=v+1
+				print word + " " + apostrophe_word[0] + "'" + apostrophe_word[1]#---------------------------
+			else:	
+				glove_embedding = get_glove_embedding(word)	
+				answers_words[j][v]=glove_embedding
+				v=v+1				
 			if characters[len(characters)-1] in special_chars:
 				glove_embedding = get_glove_embedding(characters[len(characters)-1])
 				answers_words[j][v]=glove_embedding
