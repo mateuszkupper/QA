@@ -201,7 +201,7 @@ def vectorise_questions():
 	print questions_words
 	return questions_words
 
-def vectorise_answers():
+def vectorise_answers():#########maybe one-hot-encoded###############
 	largest_num_of_sentences, largest_num_of_words = count_words_paragraphs_in_squad()
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
 	answers = answers[:10]
