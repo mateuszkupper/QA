@@ -68,26 +68,64 @@ answer_hat = tf.nn.softmax(tf.matmul(a, W))
 answer_c = tf.cast(answer, tf.float32)
 squared_deltas = tf.square(answer_hat - answer_c)
 loss = tf.reduce_mean(squared_deltas)
-optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
+optimizer = tf.train.AdamOptimizer(learning_rate=1)
 training_op = optimizer.minimize(loss)
 #correct = tf.nn.in_top_k(answer_hat, answer, 1)
 accuracy = tf.reduce_mean(tf.cast(squared_deltas, tf.float32))
 init = tf.global_variables_initializer()
+saver = tf.train.Saver()
+
 #p 390
-paragraphs, questions, answers, paragraph_question_mapping = glove.vectorise_squad()
+paragraphs, questions, paragraph_question_mapping = glove.vectorise_squad()
+a, b, c, paragraph_question_mapping = glove.read_squad()
 with tf.Session() as sess:
 	init.run()
 	answer_num = 0
-	for answer_x in answers:
-		an = answer_x
+	for question_x in questions:
+		answers_words = np.zeros((largest_num_of_words, len(glove.glove_lookup)))
+		answerc = c[answer_num]
+		words = answerc.split(' ')
+		v = 0;
+		for word in words:
+			characters = list(word)
+			if len(characters) > 0:
+				if characters[0] in glove.special_chars:
+					glove_embedding = glove.get_one_hot_encoded_from_glove(characters[0])
+					answers_words[v]=glove_embedding
+					v=v+1
+					word = word[1:]
+				if characters[len(characters)-1] in glove.special_chars:
+					word = word[:-1]
+				word = word.lower()
+				if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
+					apostrophe_word = word.split("'")
+					glove_embedding = glove.get_one_hot_encoded_from_glove(apostrophe_word[0])	
+					answers_words[v]=glove_embedding
+					v=v+1
+					glove_embedding = glove.get_one_hot_encoded_from_glove("'" + apostrophe_word[1])	
+					answers_words[v]=glove_embedding
+					v=v+1
+					print word + " " + apostrophe_word[0] + "'" + apostrophe_word[1]#---------------------------
+				else:	
+					glove_embedding = glove.get_one_hot_encoded_from_glove(word)	
+					answers_words[v]=glove_embedding
+					v=v+1				
+				if characters[len(characters)-1] in glove.special_chars:
+					glove_embedding = glove.get_one_hot_encoded_from_glove(characters[len(characters)-1])
+					answers_words[v]=glove_embedding
+					v=v+1					
+
+		an = answers_words
 		#an = tf.convert_to_tensor(an, dtype=tf.float32)
-		print a
-		qu = questions[answer_num]
+		#print a
+		qu = question_x
 		#qu = tf.convert_to_tensor(qu, dtype=tf.float32)
 		pa = paragraphs[paragraph_question_mapping[answer_num]]
 		#pa = tf.convert_to_tensor(pa, dtype=tf.float32)
-		sess.run(training_op, feed_dict={question: qu, answer: an, text: pa})
+		sess.run(answer_hat, feed_dict={question: qu, answer: an, text: pa})
 		acc_train = accuracy.eval(feed_dict={question: qu, answer: an, text: pa})
 		acc_test = accuracy.eval(feed_dict={question: qu, answer: an, text: pa})
 		print(answer_num, " T acc: ", acc_train, " Ts acc: ", acc_test)
 		answer_num = answer_num + 1
+	save_path = saver.save(sess, "/tmp/model.ckpt")
+

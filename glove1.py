@@ -46,6 +46,9 @@ def get_one_hot_encoded_from_glove(word):
 		dimension = dimension + 1
 	return one_hot_encoded		
 
+def get_word_from_one_hot_encoded(index):
+	return glove_lookup[index][0]
+
 def parse_squad():
 	with open('train-v1.1.json', 'r') as squad_file:
 		squad_string=squad_file.read()
@@ -105,7 +108,7 @@ def count_words_paragraphs_in_squad():
 	largest_num_of_sentences = 0
 	largest_num_of_words = 0	
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	paragraphs = paragraphs[:40]
+	paragraphs = paragraphs[:20]
 	for paragraph in paragraphs:
 		sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', paragraph)
 		for sentence in sentences:
@@ -130,7 +133,7 @@ count_words_paragraphs_in_squad()
 def vectorise_paragraphs():
 	largest_num_of_sentences, largest_num_of_words = count_words_paragraphs_in_squad()
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	paragraphs = paragraphs[:40]
+	paragraphs = paragraphs[:20]
 	paragraphs_sentences = np.zeros((len(paragraphs), largest_num_of_sentences, largest_num_of_words, 50))
 	#paragraphs_sentences = [[[0 for v in range(largest_num_of_words)] for i in range(largest_num_of_sentences)] for j in range(len(paragraphs))]
 	i = 0
@@ -177,7 +180,7 @@ def vectorise_paragraphs():
 def vectorise_questions():
 	largest_num_of_sentences, largest_num_of_words = count_words_paragraphs_in_squad()
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	questions = questions[:100]
+	questions = questions[:50]
 	#questions_words = [[0 for t in range(largest_num_of_words)] for l in range(len(questions))]	
 	questions_words = np.zeros((len(questions), largest_num_of_words, 50))
 	j = 0
@@ -217,52 +220,11 @@ def vectorise_questions():
 	print questions_words
 	return questions_words
 
-def vectorise_answers():#########maybe one-hot-encoded###############
-	largest_num_of_sentences, largest_num_of_words = count_words_paragraphs_in_squad()
-	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	answers = answers[:100]
-	#answers_words = [[0 for p in range(len(glove_lookup))] for h in range(len(answers))]	
-	answers_words = np.zeros((len(answers), largest_num_of_words, len(glove_lookup)))
-	j = 0
-	for answer in answers:
-		words = answer.split(' ')
-		v = 0;
-		for word in words:
-			characters = list(word)
-			if len(characters) > 0:
-				if characters[0] in special_chars:
-					glove_embedding = get_one_hot_encoded_from_glove(characters[0])
-					answers_words[j][v]=glove_embedding
-					v=v+1
-					word = word[1:]
-				if characters[len(characters)-1] in special_chars:
-					word = word[:-1]
-				word = word.lower()
-				if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
-					apostrophe_word = word.split("'")
-					glove_embedding = get_one_hot_encoded_from_glove(apostrophe_word[0])	
-					answers_words[j][v]=glove_embedding
-					v=v+1
-					glove_embedding = get_one_hot_encoded_from_glove("'" + apostrophe_word[1])	
-					answers_words[j][v]=glove_embedding
-					v=v+1
-					print word + " " + apostrophe_word[0] + "'" + apostrophe_word[1]#---------------------------
-				else:	
-					glove_embedding = get_one_hot_encoded_from_glove(word)	
-					answers_words[j][v]=glove_embedding
-					v=v+1				
-				if characters[len(characters)-1] in special_chars:
-					glove_embedding = get_one_hot_encoded_from_glove(characters[len(characters)-1])
-					answers_words[j][v]=glove_embedding
-					v=v+1				
-			print "j: " + str(j) + ",v: " + str(v)
-		j=j+1	
-	#print answers_words
-	return answers_words	
+	
 
 def vectorise_squad():
 	a, b, c, paragraph_question_mapping = read_squad()
-	return vectorise_paragraphs(), vectorise_questions(), vectorise_answers(), paragraph_question_mapping
+	return vectorise_paragraphs(), vectorise_questions(), paragraph_question_mapping
 
 #p, q, a, m = vectorise_squad()
 	#gcloud ml-engine jobs submit training glove7 --module-name trainer.main --package-path Project/trainer --staging-bucket gs://fyp_neural --scale-tier BASIC --region europe-west1
