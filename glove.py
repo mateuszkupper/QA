@@ -4,7 +4,7 @@ import re
 vocab_size = 400000
 largest_num_of_sentences = 0
 largest_num_of_words = 0
-special_chars = ["'", "/", ")", "(", "/", "'", "[", "{", "]", "}", "#", "$", "%", "^", "&", "*", "-", "_", "+", "=", ".", "\""]
+special_chars = ["'", "/", ")", "(", "/", "'", "[", "{", "]", "}", "#", "$", "%", "^", "&", "*", "-", "_", "+", "=", ".", "\"", ","]
 
 def initialise_glove_embeddings():
 	glove_dimensionality = 50
@@ -26,14 +26,17 @@ def initialise_glove_embeddings():
 	return glove_lookup	
 
 glove_lookup = initialise_glove_embeddings()
-	
+glove_lookup_dict = {}
+for entry in glove_lookup:
+	index = entry[0]
+	vector = entry[1]
+	glove_lookup_dict[index] = vector	
+
 def get_glove_embedding(word):
-	embedding = 0
-	for word_embedding in glove_lookup:
-		if word_embedding[0] == word:
-			embedding = word_embedding[1]
-			break
-	return embedding
+	if word in glove_lookup_dict:
+		return glove_lookup_dict[word]
+	else:
+		return 0
 
 def get_one_hot_encoded_from_glove(word):
 	one_hot_encoded = [0 for p in range(len(glove_lookup))]
@@ -41,10 +44,12 @@ def get_one_hot_encoded_from_glove(word):
 	for word_embedding in glove_lookup:
 		if word_embedding[0] == word:
 			one_hot_encoded[dimension] = 1
-			print str(dimension) + " " + word
 			break
 		dimension = dimension + 1
 	return one_hot_encoded		
+
+def get_word_from_one_hot_encoded(index):
+	return glove_lookup[index][0]
 
 def parse_squad():
 	with open('train-v1.1.json', 'r') as squad_file:
@@ -105,7 +110,7 @@ def count_words_paragraphs_in_squad():
 	largest_num_of_sentences = 0
 	largest_num_of_words = 0	
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	paragraphs = paragraphs[:3]
+	paragraphs = paragraphs[:20]
 	for paragraph in paragraphs:
 		sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', paragraph)
 		for sentence in sentences:
@@ -113,12 +118,13 @@ def count_words_paragraphs_in_squad():
 			num_of_special_chars = 0;
 			for word in words:
 				characters = list(word)
-				if characters[0] in special_chars:
-					num_of_special_chars=num_of_special_chars+1
-				if characters[len(characters)-1] in special_chars:
-					num_of_special_chars=num_of_special_chars+1
-				if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
-					num_of_special_chars=num_of_special_chars+1
+				if len(characters) > 0:
+					if characters[0] in special_chars:
+						num_of_special_chars=num_of_special_chars+1
+					if characters[len(characters)-1] in special_chars:
+						num_of_special_chars=num_of_special_chars+1
+					if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
+						num_of_special_chars=num_of_special_chars+1
 			if len(words) + num_of_special_chars > largest_num_of_words:
 				largest_num_of_words = len(words) + num_of_special_chars
 		if len(sentences) > largest_num_of_sentences:
@@ -130,8 +136,8 @@ count_words_paragraphs_in_squad()
 def vectorise_paragraphs():
 	largest_num_of_sentences, largest_num_of_words = count_words_paragraphs_in_squad()
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	paragraphs = paragraphs[:1]
-	paragraphs_sentences = [[[0 for v in range(largest_num_of_words)] for i in range(largest_num_of_sentences)] for j in range(len(paragraphs))]
+	paragraphs = paragraphs[:20]
+	paragraphs_sentences = np.zeros((len(paragraphs), largest_num_of_sentences, largest_num_of_words, 50))
 	i = 0
 	for paragraph in paragraphs:
 		sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', paragraph)
@@ -141,9 +147,50 @@ def vectorise_paragraphs():
 			v = 0;
 			for word in words:
 				characters = list(word)
+				if len(characters) > 0:
+					if characters[0] in special_chars:
+						glove_embedding = get_glove_embedding(characters[0])
+						paragraphs_sentences[i][j][v]=glove_embedding
+						v=v+1
+						word = word[1:]
+					if characters[len(characters)-1] in special_chars:
+						word = word[:-1]
+					word = word.lower()
+					if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
+						apostrophe_word = word.split("'")
+						glove_embedding = get_glove_embedding(apostrophe_word[0])	
+						paragraphs_sentences[i][j][v]=glove_embedding
+						v=v+1
+						glove_embedding = get_glove_embedding("'" + apostrophe_word[1])	
+						paragraphs_sentences[i][j][v]=glove_embedding
+						v=v+1
+					else:						
+						glove_embedding = get_glove_embedding(word)	
+						paragraphs_sentences[i][j][v]=glove_embedding
+						v=v+1				
+					if characters[len(characters)-1] in special_chars:
+						glove_embedding = get_glove_embedding(characters[len(characters)-1])
+						paragraphs_sentences[i][j][v]=glove_embedding
+						v=v+1								
+			j=j+1
+		i=i+1
+	return paragraphs_sentences
+
+def vectorise_questions():
+	largest_num_of_sentences, largest_num_of_words = count_words_paragraphs_in_squad()
+	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
+	questions = questions[:40]	
+	questions_words = np.zeros((len(questions), largest_num_of_words, 50))
+	j = 0
+	for question in questions:
+		words = question.split(' ')
+		v = 0;
+		for word in words:
+			characters = list(word)
+			if len(characters) > 0:
 				if characters[0] in special_chars:
 					glove_embedding = get_glove_embedding(characters[0])
-					paragraphs_sentences[i][j][v]=glove_embedding
+					questions_words[j][v]=glove_embedding
 					v=v+1
 					word = word[1:]
 				if characters[len(characters)-1] in special_chars:
@@ -152,112 +199,27 @@ def vectorise_paragraphs():
 				if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
 					apostrophe_word = word.split("'")
 					glove_embedding = get_glove_embedding(apostrophe_word[0])	
-					paragraphs_sentences[i][j][v]=glove_embedding
+					questions_words[j][v]=glove_embedding
 					v=v+1
 					glove_embedding = get_glove_embedding("'" + apostrophe_word[1])	
-					paragraphs_sentences[i][j][v]=glove_embedding
+					questions_words[j][v]=glove_embedding
 					v=v+1
-					print word + " " + apostrophe_word[0] + "'" + apostrophe_word[1]#---------------------------
-				else:						
+				else:	
 					glove_embedding = get_glove_embedding(word)	
-					paragraphs_sentences[i][j][v]=glove_embedding
+					questions_words[j][v]=glove_embedding
 					v=v+1				
 				if characters[len(characters)-1] in special_chars:
 					glove_embedding = get_glove_embedding(characters[len(characters)-1])
-					paragraphs_sentences[i][j][v]=glove_embedding
+					questions_words[j][v]=glove_embedding
 					v=v+1				
-				print "i: " + str(i) + ",j: " + str(j) + ",v: " + str(v)				
-			j=j+1
-		i=i+1
-	print paragraphs_sentences
-	return paragraphs_sentences
-
-def vectorise_questions():
-	largest_num_of_sentences, largest_num_of_words = count_words_paragraphs_in_squad()
-	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	questions = questions[:10]
-	questions_words = [[0 for t in range(largest_num_of_words)] for l in range(len(questions))]	
-	j = 0
-	for question in questions:
-		words = question.split(' ')
-		v = 0;
-		for word in words:
-			characters = list(word)
-			if characters[0] in special_chars:
-				glove_embedding = get_glove_embedding(characters[0])
-				questions_words[j][v]=glove_embedding
-				v=v+1
-				word = word[1:]
-			if characters[len(characters)-1] in special_chars:
-				word = word[:-1]
-			word = word.lower()
-			if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
-				apostrophe_word = word.split("'")
-				glove_embedding = get_glove_embedding(apostrophe_word[0])	
-				questions_words[j][v]=glove_embedding
-				v=v+1
-				glove_embedding = get_glove_embedding("'" + apostrophe_word[1])	
-				questions_words[j][v]=glove_embedding
-				v=v+1
-				print word + " " + apostrophe_word[0] + "'" + apostrophe_word[1]#---------------------------
-			else:	
-				glove_embedding = get_glove_embedding(word)	
-				questions_words[j][v]=glove_embedding
-				v=v+1				
-			if characters[len(characters)-1] in special_chars:
-				glove_embedding = get_glove_embedding(characters[len(characters)-1])
-				questions_words[j][v]=glove_embedding
-				v=v+1				
-			print "j: " + str(j) + ",v: " + str(v)
 		j=j+1	
-	print questions_words
 	return questions_words
 
-def vectorise_answers():#########maybe one-hot-encoded###############
-	largest_num_of_sentences, largest_num_of_words = count_words_paragraphs_in_squad()
-	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	answers = answers[:10]
-	answers_words = [[0 for p in range(len(glove_lookup))] for h in range(len(answers))]	
-	j = 0
-	for answer in answers:
-		words = answer.split(' ')
-		v = 0;
-		for word in words:
-			characters = list(word)
-			if characters[0] in special_chars:
-				glove_embedding = get_one_hot_encoded_from_glove(characters[0])
-				answers_words[j][v]=glove_embedding
-				v=v+1
-				word = word[1:]
-			if characters[len(characters)-1] in special_chars:
-				word = word[:-1]
-			word = word.lower()
-			if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
-				apostrophe_word = word.split("'")
-				glove_embedding = get_one_hot_encoded_from_glove(apostrophe_word[0])	
-				answers_words[j][v]=glove_embedding
-				v=v+1
-				glove_embedding = get_one_hot_encoded_from_glove("'" + apostrophe_word[1])	
-				answers_words[j][v]=glove_embedding
-				v=v+1
-				print word + " " + apostrophe_word[0] + "'" + apostrophe_word[1]#---------------------------
-			else:	
-				glove_embedding = get_one_hot_encoded_from_glove(word)	
-				answers_words[j][v]=glove_embedding
-				v=v+1				
-			if characters[len(characters)-1] in special_chars:
-				glove_embedding = get_one_hot_encoded_from_glove(characters[len(characters)-1])
-				answers_words[j][v]=glove_embedding
-				v=v+1				
-			print "j: " + str(j) + ",v: " + str(v)
-		j=j+1	
-	#print answers_words
-	return answers_words	
+	
 
 def vectorise_squad():
 	a, b, c, paragraph_question_mapping = read_squad()
-	return vectorise_paragraphs(), vectorise_questions(), vectorise_answers(), paragraph_question_mapping
+	return vectorise_paragraphs(), vectorise_questions(), paragraph_question_mapping
 
-#p, q, a, m = vectorise_squad()
 	#gcloud ml-engine jobs submit training glove7 --module-name trainer.main --package-path Project/trainer --staging-bucket gs://fyp_neural --scale-tier BASIC --region europe-west1
 
