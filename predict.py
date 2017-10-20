@@ -5,19 +5,20 @@ import re
 
 glove_dimensionality = 50
 largest_num_of_sentences, largest_num_of_words = glove.count_words_paragraphs_in_squad()
-d = 5
+d = 20
 question = tf.placeholder(tf.float32, shape=(largest_num_of_words, glove_dimensionality))
 text = tf.placeholder(tf.float32, shape=(largest_num_of_sentences, largest_num_of_words, glove_dimensionality))
 answer = tf.placeholder(tf.int32, shape=(largest_num_of_words, len(glove.glove_lookup)))
 
-A = tf.Variable(tf.random_normal([glove_dimensionality, d], stddev=0.5), name="A")
-B = tf.Variable(tf.random_normal([glove_dimensionality, d], stddev=0.5), name="B")
-C = tf.Variable(tf.random_normal([glove_dimensionality, d], stddev=0.5), name="C")
-W = tf.Variable(tf.random_normal([d, len(glove.glove_lookup)], stddev=0.5), name="W")
+A = tf.Variable(tf.random_normal([largest_num_of_sentences, glove_dimensionality, d], stddev=1), name="A")
+B = tf.Variable(tf.random_normal([largest_num_of_sentences, glove_dimensionality, d], stddev=1), name="B")
+B1 = tf.Variable(tf.random_normal([glove_dimensionality, d], stddev=1), name="B1")
+C = tf.Variable(tf.random_normal([largest_num_of_sentences, glove_dimensionality, d], stddev=1), name="C")
+W = tf.Variable(tf.random_normal([d, len(glove.glove_lookup)], stddev=1), name="W")
 saver = tf.train.Saver()
-par = "The first inhabitants of North America migrated from Siberia by way of the Bering land bridge and arrived at least 15,000 years ago, though increasing evidence suggests an even earlier arrival. [53] After crossing the land bridge, the first Americans moved southward, either along the Pacific coast [54][55] or through an interior ice-free corridor between the Cordilleran and Laurentide ice sheets. [56] The Clovis culture appeared around 11,000 BC, and it is considered to be an ancestor of most of the later indigenous cultures of the Americas. [57] While the Clovis culture was thought, throughout the late 20th century, to represent the first human settlement of the Americas, [58] in recent years consensus has changed in recognition of pre-Clovis cultures. [59]"
+par = "The first inhabitants of North America migrated from Siberia by way of the Bering land bridge and arrived at least 15,000 years ago, though increasing evidence suggests an even earlier arrival. After crossing the land bridge, the first Americans moved southward, either along the Pacific coast or through an interior ice-free corridor between the Cordilleran and Laurentide ice sheets. The Clovis culture appeared around 11,000 BC, and it is considered to be an ancestor of most of the later indigenous cultures of the Americas. While the Clovis culture was thought, throughout the late 20th century, to represent the first human settlement of the Americas, in recent years consensus has changed in recognition of pre-Clovis cultures."
 
-ques = "What is the text about?"
+ques = "When did the Clovis culture appear?"
 paragraphs_sentences = np.zeros((largest_num_of_sentences, largest_num_of_words, 50))
 sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', par)
 j = 0
@@ -86,50 +87,43 @@ for word in words:
 
 paragraph_num = 0
 
-i = 0
-text_unstacked = tf.unstack(text)
-for sentence in text_unstacked:
-	if i == 0:
-		m = tf.matmul(sentence, A)
-		c = tf.matmul(sentence, A)
-	else:
-		m = np.vstack((m, tf.matmul(sentence, A)))
-		c = np.vstack((c, tf.matmul(sentence, A)))
-	i = i + 1
+M = tf.matmul(text, A)
+C = tf.matmul(text, C)
+print M.get_shape()
 		
-u = tf.matmul(question, B)
-o = np.zeros((largest_num_of_words, d))
 
-i=0
-for mi in m:
-	sentence_question_match = tf.matmul(mi[0], u, transpose_b=True)
-	if i == 0:
-		p = tf.nn.softmax(sentence_question_match)
-	else:
-		p = np.vstack((p, sentence_question_match))
-	i = i + 1
-i = 0
-for pi, ci in zip(p, c):
-	oi = tf.matmul(pi[0], ci[0])
-	o = tf.add(oi, o)
-	i = i + 1
-
+u = tf.matmul(question, B1)
+question_stacked = tf.stack([question]*largest_num_of_sentences)
+print question_stacked.get_shape()
+U = tf.matmul(question_stacked, B)
+print U.get_shape()
+sentence_question_match = tf.matmul(M, U, transpose_b=True)
+print sentence_question_match.get_shape()
+P = tf.nn.softmax(sentence_question_match)
+print P.get_shape()
+PC = tf.matmul(P, C)
+print PC.get_shape()
+o = tf.reduce_sum(PC, 0)
+print o.get_shape()
 a = tf.add(o, u)
-answer_hat = tf.nn.softmax(tf.matmul(a, W))
-xentropy = tf.nn.softmax_cross_entropy_with_logits(labels=answer, logits=answer_hat)
+print a.get_shape()
+answer_hat = tf.matmul(a, W)
+print answer_hat.get_shape()
+answer_softmax = tf.nn.softmax(logits=answer_hat)
+xentropy = tf.nn.softmax_cross_entropy_with_logits(logits=answer_hat, labels=answer)
+print answer_softmax.get_shape()
 answer_c = tf.cast(answer, tf.float32)
-squared_deltas = tf.square(answer_hat - answer_c)
 loss = tf.reduce_mean(xentropy)
 optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.01)
 training_op = optimizer.minimize(loss)
-accuracy = tf.reduce_mean(tf.cast(xentropy, tf.float32))
-init = tf.global_variables_initializer()
+accuracy = tf.reduce_mean(tf.cast(answer_softmax, tf.float32))
+init = tf.global_variables
 
 
 with tf.Session() as sess:
 	saver.restore(sess, "/tmp/model.ckpt")
 	feed_dict = {question: questions_words, text: paragraphs_sentences}
-	classification = sess.run(answer_hat, feed_dict)
+	classification = sess.run(answer_softmax, feed_dict)
 	vectors = [0 for i in range(largest_num_of_words)]
 	i=0
 	for word in classification:
@@ -138,7 +132,8 @@ with tf.Session() as sess:
 		for emb in word:
 			if emb > emb_max:
 				emb_max = emb
-				if emb_max > 0.8:
+				if emb_max == 1:
+					print emb_max
 					vector = j
 				else:
 					vector = -1	

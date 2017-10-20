@@ -5,54 +5,61 @@ import glove as glove
 glove_dimensionality = 50
 largest_num_of_sentences, largest_num_of_words = glove.count_words_paragraphs_in_squad()
 print largest_num_of_sentences
-d = 5
+d = 1
+global_step = tf.Variable(0, name="global_step")
 question = tf.placeholder(tf.float32, shape=(largest_num_of_words, glove_dimensionality))
 text = tf.placeholder(tf.float32, shape=(largest_num_of_sentences, largest_num_of_words, glove_dimensionality))
 answer = tf.placeholder(tf.int32, shape=(largest_num_of_words, len(glove.glove_lookup)))
 
-A = tf.Variable(tf.random_normal([glove_dimensionality, d], stddev=0.5), name="A")
-B = tf.Variable(tf.random_normal([glove_dimensionality, d], stddev=0.5), name="B")
-C = tf.Variable(tf.random_normal([glove_dimensionality, d], stddev=0.5), name="C")
-W = tf.Variable(tf.random_normal([d, len(glove.glove_lookup)], stddev=0.5), name="W")
+A = tf.Variable(tf.random_normal([largest_num_of_sentences, glove_dimensionality, d], stddev=1), name="A")
+B = tf.Variable(tf.random_normal([largest_num_of_sentences, glove_dimensionality, d], stddev=1), name="B")
+B1 = tf.Variable(tf.random_normal([glove_dimensionality, d], stddev=1), name="B1")
+C = tf.Variable(tf.random_normal([largest_num_of_sentences, glove_dimensionality, d], stddev=1), name="C")
+W = tf.Variable(tf.random_normal([d, len(glove.glove_lookup)], stddev=1), name="W")
 
-paragraph_num = 0
-i = 0
-text_unstacked = tf.unstack(text)
-for sentence in text_unstacked:
-	if i == 0:
-		m = tf.matmul(sentence, A)
-		c = tf.matmul(sentence, A)
-	else:
-		m = np.vstack((m, tf.matmul(sentence, A)))
-		c = np.vstack((c, tf.matmul(sentence, A)))
-	i = i + 1
+M = tf.matmul(text, A)
+C_m = tf.matmul(text, C)
+print M.get_shape()
 		
-u = tf.matmul(question, B)
-o = np.zeros((largest_num_of_words, d))
 
-i=0
-for mi in m:
-	sentence_question_match = tf.matmul(mi[0], u, transpose_b=True)
-	if i == 0:
-		p = tf.nn.softmax(sentence_question_match)
-	else:
-		p = np.vstack((p, sentence_question_match))
-	i = i + 1
-i = 0
-for pi, ci in zip(p, c):
-	oi = tf.matmul(pi[0], ci[0])
-	o = tf.add(oi, o)
-	i = i + 1
-
+u = tf.matmul(question, B1)
+question_stacked = tf.stack([question]*largest_num_of_sentences)
+print question_stacked.get_shape()
+U = tf.matmul(question_stacked, B)
+print U.get_shape()
+sentence_question_match = tf.matmul(M, U, transpose_b=True)
+print sentence_question_match.get_shape()
+P = tf.nn.softmax(sentence_question_match)
+print P.get_shape()
+PC = tf.matmul(P, C_m)
+print PC.get_shape()
+o = tf.reduce_sum(PC, 0)
+print o.get_shape()
 a = tf.add(o, u)
-answer_hat = tf.nn.softmax(tf.matmul(a, W))
-xentropy = tf.nn.softmax_cross_entropy_with_logits(labels=answer, logits=answer_hat)
+print a.get_shape()
+answer_hat = tf.matmul(a, W)
+print answer_hat.get_shape()
+answer_softmax = tf.nn.softmax(logits=answer_hat)
+xentropy = tf.nn.softmax_cross_entropy_with_logits(logits=answer_hat, labels=answer)
+print answer_softmax.get_shape()
 answer_c = tf.cast(answer, tf.float32)
-squared_deltas = tf.square(answer_hat - answer_c)
 loss = tf.reduce_mean(xentropy)
-optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.01)
-training_op = optimizer.minimize(loss)
-accuracy = tf.reduce_mean(tf.cast(xentropy, tf.float32))
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=1)
+
+
+params = [A, B, C, W, B1]
+grads_and_vars = optimizer.compute_gradients(xentropy, params)
+clipped_grads_and_vars = [(tf.clip_by_norm(gv[0], 50), gv[1]) \
+                           for gv in grads_and_vars]
+
+inc = global_step.assign_add(1)
+with tf.control_dependencies([inc]):
+	optim = optimizer.apply_gradients(clipped_grads_and_vars)
+
+
+
+#training_op = optimizer.minimize(loss)
+accuracy = tf.reduce_mean(tf.cast(answer_softmax, tf.float32))
 init = tf.global_variables_initializer()
 saver = tf.train.Saver()
 
@@ -97,6 +104,7 @@ with tf.Session() as sess:
 		an = answers_words
 		qu = question_x
 		pa = paragraphs[paragraph_question_mapping[answer_num]]
+		print pa.shape
 		sess.run(answer_hat, feed_dict={question: qu, answer: an, text: pa})
 		acc_train = accuracy.eval(feed_dict={question: qu, answer: an, text: pa})
 		print(answer_num, " Train accuracy: ", acc_train)
