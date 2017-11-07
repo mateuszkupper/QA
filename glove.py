@@ -4,7 +4,7 @@ import re
 vocab_size = 3000
 largest_num_of_sentences = 0
 largest_num_of_words = 0
-special_chars = ["'", "/", ")", "(", "/", "'", "[", "{", "]", "}", "#", "$", "%", "^", "&", "*", "-", "_", "+", "=", ".", "\"", ","]
+special_chars = ["'", "/", ")", "(", "/", "'", "[", "{", "]", "}", "#", "$", "%", "^", "&", "*", "-", "_", "+", "=", ".", "\"", ",", ":", ";"]
 
 def initialise_glove_embeddings():
 	glove_dimensionality = 50
@@ -29,6 +29,7 @@ def initialise_glove_embeddings():
 
 glove_lookup = initialise_glove_embeddings()
 glove_lookup_dict = {}
+glove_lookup_dict_reversed = {}
 for entry in glove_lookup:
 	index = entry[0]
 	vector = entry[1]
@@ -114,13 +115,15 @@ def read_squad():
 def count_words_paragraphs_in_squad():
 	largest_num_of_sentences = 0
 	largest_num_of_words = 0	
+	largest_num_of_words_any_pararaph = 0
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	paragraphs = paragraphs[:1]
+	paragraphs = paragraphs[:500]
 	for paragraph in paragraphs:
 		sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', paragraph)
+		num_of_words = 0
 		for sentence in sentences:
 			words = sentence.split(' ')
-			num_of_special_chars = 0;
+			num_of_special_chars = 0
 			for word in words:
 				characters = list(word)
 				if len(characters) > 0:
@@ -130,18 +133,21 @@ def count_words_paragraphs_in_squad():
 						num_of_special_chars=num_of_special_chars+1
 					if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
 						num_of_special_chars=num_of_special_chars+1
+			num_of_words = num_of_words + num_of_special_chars + len(words)
 			if len(words) + num_of_special_chars > largest_num_of_words:
 				largest_num_of_words = len(words) + num_of_special_chars
+		if num_of_words > largest_num_of_words_any_pararaph:
+			largest_num_of_words_any_pararaph = num_of_words
 		if len(sentences) > largest_num_of_sentences:
 			largest_num_of_sentences = len(sentences)
-	return largest_num_of_sentences, largest_num_of_words	
+	return largest_num_of_sentences, largest_num_of_words, largest_num_of_words_any_pararaph
 
 count_words_paragraphs_in_squad()
 
 def vectorise_paragraphs():
-	largest_num_of_sentences, largest_num_of_words = count_words_paragraphs_in_squad()
+	largest_num_of_sentences, largest_num_of_words, words = count_words_paragraphs_in_squad()
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	paragraphs = paragraphs[:1]
+	paragraphs = paragraphs[:500]
 	paragraphs_sentences = np.zeros((len(paragraphs), largest_num_of_sentences, largest_num_of_words, 50))
 	i = 0
 	for paragraph in paragraphs:
@@ -182,9 +188,9 @@ def vectorise_paragraphs():
 	return paragraphs_sentences
 
 def vectorise_questions():
-	largest_num_of_sentences, largest_num_of_words = count_words_paragraphs_in_squad()
+	largest_num_of_sentences, largest_num_of_words, words = count_words_paragraphs_in_squad()
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	questions = questions[:1]	
+	questions = questions[:1000]	
 	questions_words = np.zeros((len(questions), largest_num_of_words, 50))
 	j = 0
 	for question in questions:
@@ -228,7 +234,7 @@ def vectorise_squad():
 
 def get_largest_num_of_words_in_answer():
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	answers = answers[:1]
+	answers = answers[:1000]
 	largest_num_of_words = 0
 	for answer in answers:
 		words = answer.split(' ')
