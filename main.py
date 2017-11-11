@@ -10,8 +10,8 @@ largest_num_of_words_in_answer = glove.get_largest_num_of_words_in_answer()
 print largest_num_of_sentences
 d = 400
 global_step = tf.Variable(0, name="global_step")
-question = tf.placeholder(tf.float32, shape=(largest_num_of_words, glove_dimensionality))
-text = tf.placeholder(tf.float32, shape=(largest_num_of_sentences, largest_num_of_words, glove_dimensionality))
+question = tf.placeholder(tf.float32, shape=(largest_num_of_words, glove_dimensionality), name="question")
+text = tf.placeholder(tf.float32, shape=(largest_num_of_sentences, largest_num_of_words, glove_dimensionality), name="text")
 answer = tf.placeholder(tf.int32, shape=(largest_num_of_words_in_answer, largest_num_of_words_any_paragraph))
 
 A = tf.Variable(tf.random_normal([largest_num_of_sentences, glove_dimensionality, d], stddev=0.1), name="A")
@@ -47,7 +47,7 @@ a = tf.matmul(X, u)
 print a.get_shape()
 answer_hat = tf.matmul(a, W)
 print answer_hat.get_shape()
-answer_softmax = tf.nn.softmax(logits=answer_hat)
+answer_softmax = tf.nn.softmax(logits=answer_hat, name="answer")
 xentropy = tf.nn.softmax_cross_entropy_with_logits(logits=answer_hat, labels=answer)
 print answer_softmax.get_shape()
 answer_c = tf.cast(answer, tf.float32)
@@ -207,6 +207,12 @@ with tf.Session() as sess:
 
 
 			answer_num = answer_num + 1
-	save_path = saver.save(sess, "/tmp/model.ckpt")
+	builder = tf.saved_model.builder.SavedModelBuilder("model")
+	builder.add_meta_graph_and_variables(sess, ["tag"], signature_def_map= {
+		"model": tf.saved_model.signature_def_utils.predict_signature_def(
+		    inputs= {"question": question, "text": text},
+		    outputs= {"answer": answer_softmax})
+		})
+	builder.save()
 
 

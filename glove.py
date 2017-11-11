@@ -117,7 +117,7 @@ def count_words_paragraphs_in_squad():
 	largest_num_of_words = 0	
 	largest_num_of_words_any_pararaph = 0
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	paragraphs = paragraphs[:500]
+	paragraphs = paragraphs[:50]
 	for paragraph in paragraphs:
 		sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', paragraph)
 		num_of_words = 0
@@ -147,7 +147,7 @@ count_words_paragraphs_in_squad()
 def vectorise_paragraphs():
 	largest_num_of_sentences, largest_num_of_words, words = count_words_paragraphs_in_squad()
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	paragraphs = paragraphs[:500]
+	paragraphs = paragraphs[:50]
 	paragraphs_sentences = np.zeros((len(paragraphs), largest_num_of_sentences, largest_num_of_words, 50))
 	i = 0
 	for paragraph in paragraphs:
@@ -190,7 +190,7 @@ def vectorise_paragraphs():
 def vectorise_questions():
 	largest_num_of_sentences, largest_num_of_words, words = count_words_paragraphs_in_squad()
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	questions = questions[:1000]	
+	questions = questions[:100]	
 	questions_words = np.zeros((len(questions), largest_num_of_words, 50))
 	j = 0
 	for question in questions:
@@ -234,7 +234,7 @@ def vectorise_squad():
 
 def get_largest_num_of_words_in_answer():
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	answers = answers[:1000]
+	answers = answers[:100]
 	largest_num_of_words = 0
 	for answer in answers:
 		words = answer.split(' ')
