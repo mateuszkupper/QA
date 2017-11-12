@@ -109,7 +109,7 @@ paragraph_num = 0
 a, paragraphs_str, c, paragraph_question_mapping = glove.read_squad()
 
 with tf.Session(graph=tf.Graph()) as sess:
-	tf.saved_model.loader.load(sess, ["tag"], "model")
+	tf.saved_model.loader.load(sess, ["tag"], "model1")
 	graph = tf.get_default_graph()
 	question = graph.get_tensor_by_name("question:0")
 	text = graph.get_tensor_by_name("text:0")
