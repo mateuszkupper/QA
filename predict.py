@@ -8,6 +8,32 @@ import string
 largest_num_of_sentences, largest_num_of_words, largest_num_of_words_any_paragraph = glove.count_words_paragraphs_in_squad()
 largest_num_of_words_in_answer = glove.get_largest_num_of_words_in_answer()
 
+def get_words(classification):
+	vectors = [0 for i in range(largest_num_of_words_in_answer)]
+	i=0
+	for word in classification:
+		j=0
+		emb_max = 0
+		for emb in word:
+			if emb > emb_max:
+				emb_max = emb
+				vector = j	
+			j = j + 1
+		vectors[i] = vector
+		i = i + 1
+
+	ans = ""	
+	for vector in vectors:
+		for word, word_embedding in answer_lookup_dict.iteritems():
+			if word_embedding[vector] == 1:
+				try:
+					ans = ans + " " + word
+				except Exception:
+					ans = ans + " " + str(word)
+				break
+	ans = ans + "."
+	return ans[1:].capitalize()
+
 par = "I was hired at my current workplace just over a month ago. During the interview process, I found out that someone I knew from university was also interviewing for the position. I'll call him Jim. Jim and I have never been close, but are merely aware of each other. Based solely on technical knowledge and relevant expertise, I believe that Jim would have been the better candidate for the job. In particular, he previously worked at a well known company in a position very similar to this one. I was therefore somewhat surprised when I received the offer."
 par = raw_input("Enter paragraph: ")
 ques = "Why were you surprised?"
@@ -139,29 +165,7 @@ with tf.Session(graph=tf.Graph()) as sess:
 	answer_lookup_dict['unk'] = answer_one_hot
 	feed_dict = {question: questions_words, text: paragraphs_sentences}
 	classification = sess.run(answer_softmax, feed_dict)
-	vectors = [0 for i in range(largest_num_of_words_in_answer)]
-	i=0
-	for word in classification:
-		j=0
-		emb_max = 0
-		for emb in word:
-			if emb > emb_max:
-				emb_max = emb
-				vector = j	
-			j = j + 1
-		vectors[i] = vector
-		i = i + 1
-
-	print "Answer: "
-	ans = ""	
-	for vector in vectors:
-		for word, word_embedding in answer_lookup_dict.iteritems():
-			if word_embedding[vector] == 1:
-				print word
-				#ans = ans + " " + word
-				break
-	ans = ans + "."
-	print ans[1:].capitalize()
+	print get_words(classification)
 		
 
 

@@ -30,6 +30,7 @@ def initialise_glove_embeddings():
 glove_lookup = initialise_glove_embeddings()
 glove_lookup_dict = {}
 glove_lookup_dict_reversed = {}
+
 for entry in glove_lookup:
 	index = entry[0]
 	vector = entry[1]
@@ -117,7 +118,7 @@ def count_words_paragraphs_in_squad():
 	largest_num_of_words = 0	
 	largest_num_of_words_any_pararaph = 0
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	paragraphs = paragraphs[:50]
+	paragraphs = paragraphs[:100]
 	for paragraph in paragraphs:
 		sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', paragraph)
 		num_of_words = 0
@@ -147,7 +148,7 @@ count_words_paragraphs_in_squad()
 def vectorise_paragraphs():
 	largest_num_of_sentences, largest_num_of_words, words = count_words_paragraphs_in_squad()
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	paragraphs = paragraphs[:50]
+	paragraphs = paragraphs[:100]
 	paragraphs_sentences = np.zeros((len(paragraphs), largest_num_of_sentences, largest_num_of_words, 50))
 	i = 0
 	for paragraph in paragraphs:
@@ -190,7 +191,7 @@ def vectorise_paragraphs():
 def vectorise_questions():
 	largest_num_of_sentences, largest_num_of_words, words = count_words_paragraphs_in_squad()
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	questions = questions[:100]	
+	questions = questions[:500]	
 	questions_words = np.zeros((len(questions), largest_num_of_words, 50))
 	j = 0
 	for question in questions:
@@ -226,15 +227,9 @@ def vectorise_questions():
 		j=j+1	
 	return questions_words
 
-	
-
-def vectorise_squad():
-	a, b, c, paragraph_question_mapping = read_squad()
-	return vectorise_paragraphs(), vectorise_questions(), paragraph_question_mapping
-
 def get_largest_num_of_words_in_answer():
 	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
-	answers = answers[:100]
+	answers = answers[:500]
 	largest_num_of_words = 0
 	for answer in answers:
 		words = answer.split(' ')
@@ -252,6 +247,119 @@ def get_largest_num_of_words_in_answer():
 		if len(words) + num_of_special_chars > largest_num_of_words:
 			largest_num_of_words = len(words) + num_of_special_chars
 	return largest_num_of_words		
+
+def vectorise_answers():
+	questions, paragraphs, answers, paragraph_question_mapping = read_squad()
+	largest_num_of_sentences, largest_num_of_words, largest_num_of_words_any_paragraph = count_words_paragraphs_in_squad()
+	largest_num_of_words_in_answer = get_largest_num_of_words_in_answer()
+	answers = answers[:500]
+	answers_words = np.zeros((len(answers), largest_num_of_words_in_answer, largest_num_of_words_any_paragraph))
+	j = 0
+	for answer in answers:
+		answer_lookup_dict = get_answer_dictionary(j, paragraphs, paragraph_question_mapping, largest_num_of_words_any_paragraph)
+		words = answer.split(' ')
+		v = 0;	
+		for word in words:
+			characters = list(word)
+			if len(characters) > 0:
+				if characters[0] in special_chars:
+					try:
+						glove_embedding = answer_lookup_dict[characters[0]]
+					except Exception, e:
+						glove_embedding = answer_lookup_dict['unk']
+					answers_words[j][v]=glove_embedding
+					v=v+1
+					word = word[1:]
+				if characters[len(characters)-1] in special_chars:
+					word = word[:-1]
+				word = word.lower()
+				if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
+					apostrophe_word = word.split("'")
+					try:
+						glove_embedding = answer_lookup_dict[apostrophe_word[0]]
+					except Exception, e:
+						glove_embedding = answer_lookup_dict['unk']	
+					answers_words[j][v]=glove_embedding
+					v=v+1
+					try:
+						glove_embedding =answer_lookup_dict["'" + apostrophe_word[1]]
+					except Exception, e:
+						glove_embedding = answer_lookup_dict['unk']	
+					answers_words[j][v]=glove_embedding
+					v=v+1
+				else:	
+					try:
+						glove_embedding = answer_lookup_dict[word]
+					except Exception, e:
+						glove_embedding = answer_lookup_dict['unk']
+					answers_words[j][v]=glove_embedding
+					v=v+1										
+				if characters[len(characters)-1] in special_chars:
+					try:
+						glove_embedding = answer_lookup_dict[characters[len(characters)-1]]
+					except Exception, e:
+						glove_embedding = answer_lookup_dict['unk']
+					answers_words[j][v]=glove_embedding
+					v=v+1
+		j=j+1
+	return answers_words
+
+
+def get_answer_dictionary(answer_num, paragraphs_str, paragraph_question_mapping, largest_num_of_words_any_paragraph):
+	answer_lookup_dict = {}
+	one_hot_index = 0
+	sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', paragraphs_str[paragraph_question_mapping[answer_num]])
+	while one_hot_index < largest_num_of_words_any_paragraph - 1:
+		for sentence in sentences:
+			words = sentence.split(' ')
+			for word in words:
+				answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]	
+				characters = list(word)
+				if one_hot_index < largest_num_of_words_any_paragraph - 1:
+					if len(characters) > 0:
+						if characters[0] in special_chars:
+							if one_hot_index < largest_num_of_words_any_paragraph - 1:
+								answer_one_hot[one_hot_index] = 1
+								answer_lookup_dict[characters[0]] = answer_one_hot
+								one_hot_index=one_hot_index+1
+								answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]
+								word = word[1:]
+						if characters[len(characters)-1] in special_chars:
+							word = word[:-1]
+						word = word.lower()
+						if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
+							apostrophe_word = word.split("'")
+							if one_hot_index < largest_num_of_words_any_paragraph - 1:	
+								answer_one_hot[one_hot_index] = 1
+								answer_lookup_dict[apostrophe_word[0]] = answer_one_hot
+								one_hot_index = one_hot_index + 1
+								answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]
+							if one_hot_index < largest_num_of_words_any_paragraph - 1:
+								answer_one_hot[one_hot_index] = 1	
+								answer_lookup_dict[apostrophe_word[1]] = answer_one_hot
+								one_hot_index = one_hot_index + 1
+								answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]
+						else:	
+							if one_hot_index < largest_num_of_words_any_paragraph - 1:
+								answer_one_hot[one_hot_index] = 1
+								answer_lookup_dict[word] = answer_one_hot
+								one_hot_index = one_hot_index + 1
+								answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]				
+						if characters[len(characters)-1] in special_chars:
+							if one_hot_index < largest_num_of_words_any_paragraph - 1:
+								answer_one_hot[one_hot_index] = 1
+								answer_lookup_dict[len(characters)-1] = answer_one_hot
+								one_hot_index = one_hot_index + 1
+								answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]		
+
+	answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]
+	answer_one_hot[largest_num_of_words_any_paragraph-1] = 1
+	answer_lookup_dict['unk'] = answer_one_hot
+	return answer_lookup_dict	
+
+def vectorise_squad():
+	a, b, c, paragraph_question_mapping = read_squad()
+	return vectorise_answers(), vectorise_paragraphs(), vectorise_questions(), paragraph_question_mapping
 			
 	#gcloud ml-engine jobs submit training glove7 --module-name trainer.main --package-path Project/trainer --staging-bucket gs://fyp_neural --scale-tier BASIC --region europe-west1
 
