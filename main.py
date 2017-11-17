@@ -37,14 +37,13 @@ answer_softmax = tf.nn.softmax(logits=answer_hat, name="answer")
 xentropy = tf.nn.softmax_cross_entropy_with_logits(logits=answer_hat, labels=answer)
 answer_c = tf.cast(answer, tf.float32)
 loss = tf.reduce_mean(xentropy)
-optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.003)
+optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.0006)
 
 #https://stackoverflow.com/questions/36498127/how-to-effectively-apply-gradient-clipping-in-tensor-flow
 gradients, variables = zip(*optimizer.compute_gradients(loss))
 gradients, _ = tf.clip_by_global_norm(gradients, 30.0)
 train = optimizer.apply_gradients(zip(gradients, variables))
 
-#train = optimizer.minimize(loss)
 accuracy = tf.reduce_mean(tf.cast(answer_softmax, tf.float32))
 init = tf.global_variables_initializer()
 
@@ -52,7 +51,7 @@ answers, paragraphs, questions, paragraph_question_mapping = util.vectorise_squa
 _, paragraphs_str, _, _ = util.read_squad()
 with tf.Session() as sess:
 	init.run()
-	for i in range(10):
+	for i in range(100):
 		answer_num = 0
 		for question_x in questions:	
 			an = answers[answer_num]
@@ -60,50 +59,50 @@ with tf.Session() as sess:
 			pa = paragraphs[paragraph_question_mapping[answer_num]]
 			sess.run(train, feed_dict={question: qu, answer: an, text: pa})
 			acc_train = loss.eval(feed_dict={question: qu, answer: an, text: pa})
-			#if(answer_num%100==0):
-			print(i ,answer_num, " Train accuracy: ", acc_train)
-			#if(answer_num%1000==0):
-				#builder = tf.saved_model.builder.SavedModelBuilder("model" + str(i))
-				#builder.add_meta_graph_and_variables(sess, ["tag"], signature_def_map= {
-				#	"model": tf.saved_model.signature_def_utils.predict_signature_def(
-				#	    inputs= {"question": question, "text": text},
-				#	    outputs= {"answer": answer_softmax})
-				#	})
-				#builder.save()
-			feed_dict = {question: qu, text: pa}
-			classification = sess.run(answer_softmax, feed_dict)
-			answer_lookup_dict = util.get_answer_dictionary(answer_num, paragraphs_str, paragraph_question_mapping, largest_num_of_words_any_paragraph+1)
-			print util.get_words(classification, answer_lookup_dict, largest_num_of_words_in_answer)
+			if(answer_num%100==0):
+				print(i ,answer_num, " Train accuracy: ", acc_train)
+				feed_dict = {question: qu, text: pa}
+				classification = sess.run(answer_softmax, feed_dict)
+				answer_lookup_dict = util.get_answer_dictionary(answer_num, paragraphs_str, paragraph_question_mapping, largest_num_of_words_any_paragraph+1)
+				print util.get_words(classification, answer_lookup_dict, largest_num_of_words_in_answer)
+			if(answer_num%1000==0):
+				builder = tf.saved_model.builder.SavedModelBuilder("model" + str(i))
+				builder.add_meta_graph_and_variables(sess, ["tag"], signature_def_map= {
+					"model": tf.saved_model.signature_def_utils.predict_signature_def(
+					    inputs= {"question": question, "text": text},
+					    outputs= {"answer": answer_softmax})
+					})
+				builder.save()
 			answer_num = answer_num + 1
 
-	#validate
-	answers, paragraphs, questions, new_paragraph_question_mapping = util.vectorise_validation_squad()
-	_, paragraphs_str, _, paragraph_question_mapping = util.read_squad()
-	answer_num = 0
-	absolute_answer_num = 77000
-	overall_accuracy = 0
-	for question_x in questions:	
-		an = answers[answer_num]
-		qu = question_x
-		pa = paragraphs[new_paragraph_question_mapping[answer_num]]
-		feed_dict = {question: qu, text: pa}
-		classification = sess.run(answer_softmax, feed_dict)
-		answer_lookup_dict = util.get_answer_dictionary(absolute_answer_num, paragraphs_str, paragraph_question_mapping, largest_num_of_words_any_paragraph+1)
-		words_answer_hat = util.get_words(classification, answer_lookup_dict, largest_num_of_words_in_answer)
-		words_answer = util.get_words(an, answer_lookup_dict, largest_num_of_words_in_answer)
-		print words_answer_hat
-		print words_answer
-		split_hat = words_answer_hat.split(' ')
-		split = words_answer.split(' ')
-		correct_words_count = 0
-		for word in split:
-			for word_hat in split_hat:
-				if word_hat==word:
-					correct_words_count = correct_words_count + 1
-		accuracy = float(correct_words_count)/float(len(split))
-		print ("Example accuracy: ", accuracy)
-		overall_accuracy = (accuracy+float(overall_accuracy))/float(answer_num + 1)
+		#validate
+		answersw, paragraphsw, questionsw, new_paragraph_question_mapping = util.vectorise_validation_squad()
+		_, _, _, paragraph_question_mappingw = util.read_squad()
+		_, paragraphs_strw, answers_strw, _ = util.return_validatation_set()
+		answer_numw = 0
+		absolute_answer_num = 77000
+		overall_accuracy = 0
+		for question_xw in questionsw:	
+			anw = answersw[answer_numw]
+			quw = question_xw
+			paw = paragraphsw[new_paragraph_question_mapping[answer_numw]]
+			feed_dict = {question: quw, text: paw}
+			classification = sess.run(answer_softmax, feed_dict)
+			answer_lookup_dict = util.get_answer_dictionary(answer_numw, paragraphs_strw, new_paragraph_question_mapping, largest_num_of_words_any_paragraph)
+			words_answer_hat = util.get_words(classification, answer_lookup_dict, largest_num_of_words_in_answer)
+			print words_answer_hat
+			print answers_strw[answer_numw]
+			split_hat = words_answer_hat.split(' ')
+			split = answers_strw[answer_numw].split(' ')
+			correct_words_count = 0
+			for word in split:
+				for word_hat in split_hat:
+					if word_hat==word and word_hat!="unk" and word_hat!=" " and word_hat!="unk.":
+						correct_words_count = correct_words_count + 1
+			accuracy = float(correct_words_count)/float(len(split))
+			print ("Example accuracy: ", accuracy)
+			overall_accuracy = (accuracy+float(overall_accuracy))/float(answer_numw + 1)
 
-		print ("Overall accuracy: ", overall_accuracy)
-		answer_num = answer_num + 1	
-		absolute_answer_num = absolute_answer_num + 1
+			print ("Overall accuracy: ", overall_accuracy)
+			answer_numw = answer_numw + 1	
+			absolute_answer_num = absolute_answer_num + 1

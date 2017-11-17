@@ -89,60 +89,86 @@ while proceed in ['q', 'p']:
 	a, paragraphs_str, c, paragraph_question_mapping = util.read_squad()
 
 	with tf.Session(graph=tf.Graph()) as sess:
-		tf.saved_model.loader.load(sess, ["tag"], "model1")
+		tf.saved_model.loader.load(sess, ["tag"], "model")
 		graph = tf.get_default_graph()
 		question = graph.get_tensor_by_name("question:0")
 		text = graph.get_tensor_by_name("text:0")
 		answer_softmax = graph.get_tensor_by_name("answer:0")
-
+		largest_num_of_words_any_paragraph = largest_num_of_words_any_paragraph + 1
 		answer_lookup_dict = {}
 		one_hot_index = 0
 		sentences = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s', par)
-		while one_hot_index < largest_num_of_words_any_paragraph - 1:
-			for sentence in sentences:
-				words = sentence.split(' ')
-				for word in words:
-					answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]	
-					characters = list(word)
-					if one_hot_index < largest_num_of_words_any_paragraph - 1:
-						if len(characters) > 0:
-							if characters[0] in util.special_chars:
-								if one_hot_index < largest_num_of_words_any_paragraph - 1:
-									answer_one_hot[one_hot_index] = 1
-									answer_lookup_dict[characters[0]] = answer_one_hot
-									one_hot_index=one_hot_index+1
-									answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]
-									word = word[1:]
-							if characters[len(characters)-1] in util.special_chars:
-								word = word[:-1]
-							word = word.lower()
-							if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
-								apostrophe_word = word.split("'")
-								if one_hot_index < largest_num_of_words_any_paragraph - 1:	
-									answer_one_hot[one_hot_index] = 1
-									answer_lookup_dict[apostrophe_word[0]] = answer_one_hot
-									one_hot_index = one_hot_index + 1
-									answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]
-								if one_hot_index < largest_num_of_words_any_paragraph - 1:
-									answer_one_hot[one_hot_index] = 1	
-									answer_lookup_dict[apostrophe_word[1]] = answer_one_hot
-									one_hot_index = one_hot_index + 1
-									answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]
-							else:	
-								if one_hot_index < largest_num_of_words_any_paragraph - 1:
-									answer_one_hot[one_hot_index] = 1
-									answer_lookup_dict[word] = answer_one_hot
-									one_hot_index = one_hot_index + 1
-									answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]				
-							if characters[len(characters)-1] in util.special_chars:
-								if one_hot_index < largest_num_of_words_any_paragraph - 1:
-									answer_one_hot[one_hot_index] = 1
-									answer_lookup_dict[len(characters)-1] = answer_one_hot
-									one_hot_index = one_hot_index + 1
-									answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]			
-		answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph)]
-		answer_one_hot[largest_num_of_words_any_paragraph-2] = 1
+		for sentence in sentences:
+			if one_hot_index>=largest_num_of_words_any_paragraph+1:
+				break
+			words = sentence.split(' ')
+			for word in words:
+				if one_hot_index>=largest_num_of_words_any_paragraph+1:
+					break
+				answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph+2)]	
+				characters = list(word)
+				if len(characters) > 0:
+					if characters[0] in util.special_chars and characters[0] not in answer_lookup_dict:
+						if one_hot_index>=largest_num_of_words_any_paragraph+1:
+							break
+						answer_one_hot[one_hot_index] = 1
+						answer_lookup_dict[characters[0]] = answer_one_hot
+						one_hot_index=one_hot_index+1
+						answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph+2)]
+						word = word[1:]
+					if characters[len(characters)-1] in util.special_chars:
+						word = word[:-1]
+					word = word.lower()
+					if "'" in word and characters[0] not in "'" and characters[len(characters)-1] not in "'":
+						apostrophe_word = word.split("'")
+						if one_hot_index>=largest_num_of_words_any_paragraph+1:
+							break
+						if apostrophe_word[0] not in answer_lookup_dict: 
+							answer_one_hot[one_hot_index] = 1
+							answer_lookup_dict[apostrophe_word[0]] = answer_one_hot
+							one_hot_index = one_hot_index + 1
+							answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph+2)]
+						if one_hot_index>=largest_num_of_words_any_paragraph+1:
+							break
+						if apostrophe_word[1] not in answer_lookup_dict: 
+							answer_one_hot[one_hot_index] = 1	
+							answer_lookup_dict[apostrophe_word[1]] = answer_one_hot
+							one_hot_index = one_hot_index + 1
+							answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph+2)]
+					else:
+						if one_hot_index>=largest_num_of_words_any_paragraph+1:
+							break
+						if word not in answer_lookup_dict: 
+							answer_one_hot[one_hot_index] = 1
+							answer_lookup_dict[word] = answer_one_hot
+							one_hot_index = one_hot_index + 1
+							answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph+2)]				
+					if characters[len(characters)-1] in util.special_chars:
+						if one_hot_index>=largest_num_of_words_any_paragraph+1:
+							break
+						if characters[len(characters)-1] not in answer_lookup_dict: 
+							answer_one_hot[one_hot_index] = 1
+							answer_lookup_dict[len(characters)-1] = answer_one_hot
+							one_hot_index = one_hot_index + 1
+							answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph+2)]
+		#x = 0
+		#for word, word_embedding in answer_lookup_dict.iteritems():
+		#	x = x + 1
+		#	h = 0
+		#	for embedding in word_embedding:
+		#		if embedding == 1:
+		#			print h
+		#			if h==56:
+		#				print "vvww"
+		#		h = h + 1
+		#	print word
+		#print ("len: ", x)	
+		answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph+2)]
+		answer_one_hot[largest_num_of_words_any_paragraph] = 1
 		answer_lookup_dict['unk'] = answer_one_hot
+		answer_one_hot = [0 for i in range(largest_num_of_words_any_paragraph+2)]
+		answer_one_hot[largest_num_of_words_any_paragraph+1] = 1
+		answer_lookup_dict[''] = answer_one_hot
 		feed_dict = {question: questions_words, text: paragraphs_sentences}
 		classification = sess.run(answer_softmax, feed_dict)
 		print util.get_words(classification, answer_lookup_dict, largest_num_of_words_in_answer)
